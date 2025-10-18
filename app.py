@@ -420,7 +420,7 @@ if __name__ == "__main__":
     import uvicorn
     
     # Run the API server
-    # Access the API at: http://localhost:6889
-    # Interactive docs at: http://localhost:6889/docs
-    uvicorn.run(app, host="0.0.0.0", port=6889, log_level="info")
+    # Access the API at: http://localhost:6091
+    # Interactive docs at: http://localhost:6091/docs
+    uvicorn.run(app, host="0.0.0.0", port=6091, log_level="info")
 

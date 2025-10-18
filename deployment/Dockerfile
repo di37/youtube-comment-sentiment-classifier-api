@@ -26,7 +26,7 @@ COPY . .
 RUN mkdir -p models data/interim data/raw logs
 
 # Expose port
-EXPOSE 6889
+EXPOSE 6091
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
