@@ -1,0 +1,35 @@
+services:
+  youtube-sentiment-api:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    container_name: youtube-sentiment-api
+    ports:
+      - "6889:6889"
+    environment:
+      # AWS Credentials for MLflow S3 access
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=me-central-1
+      # AWS configuration
+      - AWS_ENDPOINT_URL=https://s3.me-central-1.amazonaws.com
+      # MLflow configuration
+      - MLFLOW_TRACKING_URI=http://3.29.129.159:5000
+      - MLFLOW_S3_ENDPOINT_URL=https://s3.me-central-1.amazonaws.com
+    volumes:
+      # Mount model files
+      - ../models/lgbm_model.pkl:/app/lgbm_model.pkl
+      - ../models/tfidf_vectorizer.pkl:/app/tfidf_vectorizer.pkl
+      # Mount logs
+      - ../logs:/app/logs
+      # Mount data directories
+      - ../data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6889/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+
