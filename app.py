@@ -20,10 +20,17 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Set AWS credentials for MLflow S3 access
-os.environ['AWS_ACCESS_KEY_ID'] = os.getenv('AWS_ACCESS_KEY_ID')
-os.environ['AWS_SECRET_ACCESS_KEY'] = os.getenv('AWS_SECRET_ACCESS_KEY')
-os.environ['AWS_DEFAULT_REGION'] = os.getenv('AWS_DEFAULT_REGION')
+# Set AWS credentials for MLflow S3 access (only if they exist)
+if os.getenv('AWS_ACCESS_KEY_ID'):
+    os.environ['AWS_ACCESS_KEY_ID'] = os.getenv('AWS_ACCESS_KEY_ID')
+if os.getenv('AWS_SECRET_ACCESS_KEY'):
+    os.environ['AWS_SECRET_ACCESS_KEY'] = os.getenv('AWS_SECRET_ACCESS_KEY')
+if os.getenv('AWS_DEFAULT_REGION'):
+    os.environ['AWS_DEFAULT_REGION'] = os.getenv('AWS_DEFAULT_REGION')
+elif os.getenv('AWS_REGION'):
+    os.environ['AWS_DEFAULT_REGION'] = os.getenv('AWS_REGION')
+else:
+    os.environ['AWS_DEFAULT_REGION'] = 'me-central-1'  # Default region
 
 # Add project root to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
