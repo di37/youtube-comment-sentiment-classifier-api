@@ -11,6 +11,7 @@ import pickle
 import logging
 import numpy as np
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Dict
 import mlflow
@@ -47,6 +48,15 @@ app = FastAPI(
     title="YouTube Sentiment Analysis API",
     description="Analyze sentiment of YouTube comments",
     version="1.0.0"
+)
+
+# Configure CORS for YouTube plugin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins - you can restrict this to specific domains
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
 )
 
 # Global variables for models and vectorizer
