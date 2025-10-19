@@ -12,11 +12,19 @@ import logging
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Dict
+from typing import Dict, List
 import mlflow
 import mlflow.pyfunc
 from dotenv import load_dotenv
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+from io import BytesIO
+from datetime import datetime
+from collections import Counter
 
 # Load environment variables
 load_dotenv()
@@ -423,6 +431,225 @@ async def batch_predict_mlflow(request: BatchCommentRequest):
         raise HTTPException(
             status_code=500,
             detail=f"An error occurred during batch prediction: {str(e)}"
+        )
+
+
+# Chrome Extension Models
+class CommentWithTimestamp(BaseModel):
+    """Model for comment with timestamp."""
+    text: str
+    timestamp: str
+    authorId: str = "Unknown"
+
+
+class ChromeExtensionRequest(BaseModel):
+    """Request model for Chrome extension batch predictions."""
+    comments: List[CommentWithTimestamp]
+
+
+class SentimentCountRequest(BaseModel):
+    """Request model for sentiment chart generation."""
+    sentiment_counts: Dict[str, int]
+
+
+class TrendDataPoint(BaseModel):
+    """Model for trend data point."""
+    timestamp: str
+    sentiment: int
+
+
+class TrendGraphRequest(BaseModel):
+    """Request model for trend graph generation."""
+    sentiment_data: List[TrendDataPoint]
+
+
+class WordCloudRequest(BaseModel):
+    """Request model for word cloud generation."""
+    comments: List[str]
+
+
+@app.post("/predict_with_timestamps")
+async def predict_with_timestamps(request: ChromeExtensionRequest):
+    """Predict sentiment for comments with timestamps (for Chrome extension).
+    
+    Args:
+        request: ChromeExtensionRequest containing list of comments with timestamps
+        
+    Returns:
+        List of predictions with sentiment and timestamp
+    """
+    try:
+        if local_model is None or vectorizer is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Model or vectorizer not loaded."
+            )
+        
+        results = []
+        for comment_obj in request.comments:
+            sentiment = make_prediction(comment_obj.text, local_model)
+            results.append({
+                "comment": comment_obj.text,
+                "sentiment": str(sentiment),
+                "timestamp": comment_obj.timestamp
+            })
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error during prediction with timestamps: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred during prediction: {str(e)}"
+        )
+
+
+@app.post("/generate_chart")
+async def generate_chart(request: SentimentCountRequest):
+    """Generate a pie chart for sentiment distribution.
+    
+    Args:
+        request: SentimentCountRequest containing sentiment counts
+        
+    Returns:
+        StreamingResponse with pie chart image
+    """
+    try:
+        sentiment_counts = request.sentiment_counts
+        
+        # Map sentiment labels
+        labels = []
+        sizes = []
+        colors = []
+        
+        if "1" in sentiment_counts and sentiment_counts["1"] > 0:
+            labels.append(f'Positive ({sentiment_counts["1"]})')
+            sizes.append(sentiment_counts["1"])
+            colors.append('#4CAF50')
+        
+        if "0" in sentiment_counts and sentiment_counts["0"] > 0:
+            labels.append(f'Neutral ({sentiment_counts["0"]})')
+            sizes.append(sentiment_counts["0"])
+            colors.append('#FFC107')
+        
+        if "-1" in sentiment_counts and sentiment_counts["-1"] > 0:
+            labels.append(f'Negative ({sentiment_counts["-1"]})')
+            sizes.append(sentiment_counts["-1"])
+            colors.append('#F44336')
+        
+        # Create pie chart
+        plt.figure(figsize=(8, 6))
+        plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
+        plt.title('Sentiment Distribution', fontsize=16, fontweight='bold')
+        plt.axis('equal')
+        
+        # Save to BytesIO
+        buf = BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        plt.close()
+        
+        return StreamingResponse(buf, media_type="image/png")
+        
+    except Exception as e:
+        logger.error(f"Error generating chart: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while generating chart: {str(e)}"
+        )
+
+
+@app.post("/generate_wordcloud")
+async def generate_wordcloud(request: WordCloudRequest):
+    """Generate a word cloud from comments.
+    
+    Args:
+        request: WordCloudRequest containing list of comments
+        
+    Returns:
+        StreamingResponse with word cloud image
+    """
+    try:
+        # Combine all comments
+        text = ' '.join(request.comments)
+        
+        # Generate word cloud
+        wordcloud = WordCloud(
+            width=800,
+            height=400,
+            background_color='white',
+            colormap='viridis',
+            max_words=100
+        ).generate(text)
+        
+        # Create plot
+        plt.figure(figsize=(10, 5))
+        plt.imshow(wordcloud, interpolation='bilinear')
+        plt.axis('off')
+        plt.title('Comment Word Cloud', fontsize=16, fontweight='bold')
+        
+        # Save to BytesIO
+        buf = BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        plt.close()
+        
+        return StreamingResponse(buf, media_type="image/png")
+        
+    except Exception as e:
+        logger.error(f"Error generating word cloud: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while generating word cloud: {str(e)}"
+        )
+
+
+@app.post("/generate_trend_graph")
+async def generate_trend_graph(request: TrendGraphRequest):
+    """Generate a sentiment trend graph over time.
+    
+    Args:
+        request: TrendGraphRequest containing sentiment data with timestamps
+        
+    Returns:
+        StreamingResponse with trend graph image
+    """
+    try:
+        sentiment_data = request.sentiment_data
+        
+        # Parse timestamps and sentiments
+        timestamps = [datetime.fromisoformat(item.timestamp.replace('Z', '+00:00')) for item in sentiment_data]
+        sentiments = [item.sentiment for item in sentiment_data]
+        
+        # Sort by timestamp
+        sorted_data = sorted(zip(timestamps, sentiments), key=lambda x: x[0])
+        timestamps, sentiments = zip(*sorted_data)
+        
+        # Create line plot
+        plt.figure(figsize=(10, 5))
+        plt.plot(timestamps, sentiments, marker='o', linestyle='-', color='#2196F3', linewidth=2, markersize=4)
+        plt.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+        plt.xlabel('Time', fontsize=12)
+        plt.ylabel('Sentiment', fontsize=12)
+        plt.title('Sentiment Trend Over Time', fontsize=16, fontweight='bold')
+        plt.yticks([-1, 0, 1], ['Negative', 'Neutral', 'Positive'])
+        plt.grid(True, alpha=0.3)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        
+        # Save to BytesIO
+        buf = BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        plt.close()
+        
+        return StreamingResponse(buf, media_type="image/png")
+        
+    except Exception as e:
+        logger.error(f"Error generating trend graph: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while generating trend graph: {str(e)}"
         )
 
 
