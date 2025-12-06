@@ -257,7 +257,7 @@ def make_prediction(comment_text: str, model_to_use):
     sentiment = SENTIMENT_MAP.get(int(prediction), 0)
     sentiment_label = SENTIMENT_LABELS.get(sentiment, "unknown")
     
-    logger.info(f"Predicted sentiment: {sentiment_label} ({sentiment})")
+    logger.info(f"Predicted sentiment: {sentiment_label} ({sentiment}).")
     
     return sentiment
 
